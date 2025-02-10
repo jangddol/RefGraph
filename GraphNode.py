@@ -53,9 +53,9 @@ def get_citing_papers(doi):
 def get_paper_citations(doi):
     paper_info = get_paper_info(doi)
     if paper_info:
-        title = paper_info.get('title', [''])[0]
-        authors = ', '.join([author['given'] + ' ' + author['family'] for author in paper_info.get('author', [])])
-        year = paper_info.get('published-print', {}).get('date-parts', [[None]])[0][0]
+        title = paper_info.get('title', ['unknown'])[0] if paper_info.get('title') else 'unknown'
+        authors = ', '.join([author.get('given', 'unknown') + ' ' + author.get('family', 'unknown') for author in paper_info.get('author', [])]) if paper_info.get('author') else 'unknown'
+        year = paper_info.get('published-print', {}).get('date-parts', [[None]])[0][0] if paper_info.get('published-print') else 'unknown'
         info = {
             "title": title,
             "authors": authors,

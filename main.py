@@ -4,16 +4,48 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 
-def build_graph(start_doi, search_distance):
+def save_total_graphnodes(total_graphnodes, filename):
+    with open(filename, 'w') as f:
+        for doi, node in total_graphnodes.items():
+            f.write(f"{doi}\n")
+            f.write(f"{node.info}\n")
+            f.write(f"{node.get_references()}\n")
+            f.write(f"{node.get_citing_dois()}\n")
+
+def load_total_graphnodes(filename):
     total_graphnodes = {}
-    visited_dois = set()
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        for i in range(0, len(lines), 4):
+            doi = lines[i].strip()
+            info = eval(lines[i + 1].strip())
+            references = eval(lines[i + 2].strip())
+            citing_dois = eval(lines[i + 3].strip())
+    
+            node = GraphNode(doi)
+            node.info = info
+            node.references = references
+            node.citing_dois = citing_dois
+            
+            total_graphnodes[doi] = node
+            
+    return total_graphnodes
+
+def build_graph(start_doi, search_distance, total_graphnodes=None):
+    if total_graphnodes is None:
+        total_graphnodes = {}
+    visited_dois = {graphnode.doi for graphnode in total_graphnodes.values()}
+    progress = 0
 
     def add_node(doi, distance):
+        nonlocal progress
         if doi in visited_dois or distance > search_distance:
             return
         visited_dois.add(doi)
         node = GraphNode(doi)
         total_graphnodes[doi] = node
+        progress += 1
+        print(f"Progress: {progress}")
         for ref_doi in node.get_references():
             add_node(ref_doi, distance + 1)
         for citing_doi in node.get_citing_dois():
@@ -68,6 +100,11 @@ def visualize_graph(total_graphnodes):
 # 예제 사용
 if __name__ == '__main__':
     start_doi = '10.1038/s42005-020-0317-3'
-    search_distance = 3
+    search_distance = 2
+    
     total_graphnodes = build_graph(start_doi, search_distance)
+    print(f"Total number of nodes: {len(total_graphnodes)}")
+    save_total_graphnodes(total_graphnodes, 'total_graphnodes.txt')
+    
+    total_graphnodes = load_total_graphnodes('total_graphnodes.txt')
     visualize_graph(total_graphnodes)
