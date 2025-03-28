@@ -1,6 +1,7 @@
 import requests
 import json
 from typing import List, Dict, Tuple, Optional
+import os
 
 def get_journal_articles(journal: str, start_year: int, end_year: int) -> List[Dict]:
     """
@@ -17,7 +18,7 @@ def get_journal_articles(journal: str, start_year: int, end_year: int) -> List[D
         url = f"https://api.crossref.org/journals/{journal}/works"
         params = {
             'filter': f'from-pub-date:{year}-01-01,until-pub-date:{year}-12-31',
-            'rows': 1000,  # 한 번의 요청에서 가져올 최대 항목 수
+            'rows': 100,  # 한 번의 요청에서 가져올 최대 항목 수
             'cursor': '*',  # 초기 cursor 값
         }
         while True:
@@ -29,6 +30,9 @@ def get_journal_articles(journal: str, start_year: int, end_year: int) -> List[D
 
                 data = response.json()
                 items = data.get('message', {}).get('items', [])
+                if not items:
+                    print(f"No articles found for journal {journal} for year {year}.")
+                    break  # 0개 받은 경우 멈춤
                 articles.extend(items)
 
                 # 다음 페이지로 이동하기 위한 cursor 값 업데이트
@@ -36,6 +40,7 @@ def get_journal_articles(journal: str, start_year: int, end_year: int) -> List[D
                 if not next_cursor:
                     break  # 더 이상 가져올 데이터가 없으면 종료
                 params['cursor'] = next_cursor
+                print(f"Retrieved {len(items)} articles for journal {journal} for year {year}.")
             except requests.exceptions.Timeout:
                 print(f"Request timed out for journal {journal} for year {year}.")
                 break
@@ -59,26 +64,6 @@ def get_paper_info(doi: str) -> Optional[Dict]:
     except requests.exceptions.Timeout:
         print(f"Request timed out for DOI {doi}.")
         return None
-
-def get_references(doi: str) -> List[str]:
-    """
-    주어진 DOI를 사용하여 논문의 참조 목록을 가져옵니다.
-    Args:
-        doi (str): 참조를 가져올 논문의 DOI(디지털 객체 식별자).
-    Returns:
-        list: 참조 논문의 DOI 목록. 참조를 가져오지 못한 경우 빈 리스트를 반환합니다.
-    """
-    paper_info = get_paper_info(doi)
-    if not paper_info:
-        print(f"Failed to retrieve references for DOI {doi}.")
-        return []
-    references_list: List[str] = []
-    references = paper_info.get('reference', [])
-    for ref in references:
-        ref_doi = ref.get('DOI')
-        if ref_doi:
-            references_list.append(ref_doi)
-    return references_list
 
 def get_paper_citations(doi: str) -> Tuple[Dict, List[str]]:
     """
@@ -105,8 +90,13 @@ def get_paper_citations(doi: str) -> Tuple[Dict, List[str]]:
         "doi": doi
     }
 
-    references = get_references(doi)
-    return info, references
+    references_list: List[str] = []
+    references = paper_info.get('reference', [])
+    for ref in references:
+        ref_doi = ref.get('DOI')
+        if ref_doi:
+            references_list.append(ref_doi)
+    return info, references_list
 
 def get_journal_graph(journal: str, start_year: int, end_year: int) -> Dict[str, Dict]:
     """
@@ -157,8 +147,11 @@ if __name__ == '__main__':
 
     for journal_issn in allowed_ISSN:
         for year in range(START_YEAR, END_YEAR + 1):
+            filename = f"{journal_issn}_{year}.json"
+            if os.path.exists(filename):
+                print(f"File {filename} already exists. Skipping.")
+                continue
             print(f"Processing journal {journal_issn} for year {year}")
             journal_graph = get_journal_graph(journal_issn, year, year)
-            filename = f"{journal_issn}_{year}.json"
             save_graph_to_json(journal_graph, filename)
             print(f"Saved graph to {filename}")
