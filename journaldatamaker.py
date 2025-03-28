@@ -17,18 +17,28 @@ def get_journal_articles(journal: str, start_year: int, end_year: int) -> List[D
         url = f"https://api.crossref.org/journals/{journal}/works"
         params = {
             'filter': f'from-pub-date:{year}-01-01,until-pub-date:{year}-12-31',
-            'rows': 1000  # Adjust the number of rows as needed
+            'rows': 1000,  # 한 번의 요청에서 가져올 최대 항목 수
+            'cursor': '*',  # 초기 cursor 값
         }
-        try:
-            response = requests.get(url, params=params, timeout=10)
-            if response.status_code != 200:
-                print(f"Error retrieving articles for journal {journal} for year {year}: {response.status_code}")
-                continue
+        while True:
+            try:
+                response = requests.get(url, params=params)
+                if response.status_code != 200:
+                    print(f"Error retrieving articles for journal {journal} for year {year}: {response.status_code}")
+                    break
 
-            items = response.json().get('message', {}).get('items', [])
-            articles.extend(items)
-        except requests.exceptions.Timeout:
-            print(f"Request timed out for journal {journal} for year {year}.")
+                data = response.json()
+                items = data.get('message', {}).get('items', [])
+                articles.extend(items)
+
+                # 다음 페이지로 이동하기 위한 cursor 값 업데이트
+                next_cursor = data.get('message', {}).get('next-cursor')
+                if not next_cursor:
+                    break  # 더 이상 가져올 데이터가 없으면 종료
+                params['cursor'] = next_cursor
+            except requests.exceptions.Timeout:
+                print(f"Request timed out for journal {journal} for year {year}.")
+                break
     return articles
 
 def get_paper_info(doi: str) -> Optional[Dict]:
@@ -41,7 +51,7 @@ def get_paper_info(doi: str) -> Optional[Dict]:
     """
     url = f"https://api.crossref.org/works/{doi}"
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url)
         if response.status_code != 200:
             print(f"Error retrieving paper info for DOI {doi}: {response.status_code}")
             return None
