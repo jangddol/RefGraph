@@ -1,31 +1,15 @@
 import os
 import json
 
-def extract_journal_doi(doi: str) -> str:
+def get_journal_data_files() -> list[str]:
     """
-    Extract the journal DOI from the full DOI.
-
-    Args:
-        doi (str): The full DOI.
-
-    Returns:
-        str: The journal DOI.
-    """
-    return doi.split('/')[0]
-
-def get_journal_data_files(journal_doi: str) -> list[str]:
-    """
-    Get the list of journal data files for a specific journal DOI.
-
-    Args:
-        journal_doi (str): The journal DOI.
+    Get the list of all journal data files.
 
     Returns:
         list[str]: A list of filenames containing the journal data.
     """
     journal_data_path = 'journal_data/'
-    journal_data_fullpath = os.listdir(journal_data_path)
-    return [file for file in journal_data_fullpath if file.startswith(journal_doi)]
+    return [os.path.join(journal_data_path, file) for file in os.listdir(journal_data_path)]
 
 def find_doi_in_file(filename: str, doi: str) -> tuple[dict, int]:
     """
@@ -48,7 +32,7 @@ def find_doi_in_file(filename: str, doi: str) -> tuple[dict, int]:
 
 def get_doi_data_from_json(doi: str) -> tuple[dict, int]:
     """
-    Retrieve the data of a paper using its DOI from JSON files.
+    Retrieve the data of a paper using its DOI from all JSON files.
 
     Args:
         doi (str): The DOI of the paper.
@@ -56,8 +40,7 @@ def get_doi_data_from_json(doi: str) -> tuple[dict, int]:
     Returns:
         tuple[dict, int]: A tuple containing the paper's data and the year of the data.
     """
-    journal_doi = extract_journal_doi(doi)
-    journal_data_files = get_journal_data_files(journal_doi)
+    journal_data_files = get_journal_data_files()
     
     for filename in journal_data_files:
         doi_data, doi_year = find_doi_in_file(filename, doi)
@@ -65,45 +48,60 @@ def get_doi_data_from_json(doi: str) -> tuple[dict, int]:
             return doi_data, doi_year
     return None, None
 
-def get_references(doi: str) -> list[str]:
+def build_reference_graph(start_doi: str, search_depth: int) -> dict:
     """
-    Retrieve the list of references for a given DOI.
+    Build a reference graph starting from a given DOI.
 
     Args:
-        doi (str): The Digital Object Identifier (DOI) of the document.
+        start_doi (str): The starting DOI.
+        search_depth (int): The depth of the search.
 
     Returns:
-        list[str]: A list of DOIs that are referenced by the given document.
+        dict: A nested dictionary representing the reference graph.
     """
-    paper_data = get_doi_data_from_json(doi)[0]
-    if paper_data:
-        return paper_data.get('references', [])
-    return []
+    def recursive_search(doi: str, depth: int) -> dict:
+        if depth == 0:
+            return {}
+        
+        doi_data, _ = get_doi_data_from_json(doi)
+        if not doi_data or 'references' not in doi_data:
+            return {}
+        
+        references = doi_data['references']
+        graph = {}
+        for ref_doi in references:
+            graph[ref_doi] = recursive_search(ref_doi, depth - 1)
+        return graph
 
+    return {start_doi: recursive_search(start_doi, search_depth)}
 
-def find_before_doi(doi_container: list[str], remain_depth:int, already_done: list[str]=None) -> list[str]:
-    if remain_depth == 0:
-        return doi_container
+def save_reference_graph_to_json(reference_graph: dict, output_file: str) -> None:
+    """
+    Save the reference graph to a JSON file.
 
-    if already_done is None:
-        already_done = []
+    Args:
+        reference_graph (dict): The reference graph to save.
+        output_file (str): The path to the output JSON file.
+    """
+    with open(output_file, 'w', encoding='UTF-8') as f:
+        json.dump(reference_graph, f, indent=4)
 
-    new_doi_container = []
-    for doi in doi_container:
-        if doi in already_done:
-            continue
-        already_done.append(doi)
-        new_doi_container.extend(get_references(doi))
+def load_reference_graph_from_json(input_file: str) -> dict:
+    """
+    Load the reference graph from a JSON file.
 
-    return find_before_doi(new_doi_container, remain_depth-1, already_done)
+    Args:
+        input_file (str): The path to the input JSON file.
 
-# 예제 사용
-if __name__ == '__main__':
-    start_doi = '10.1038/s42005-020-0317-3'
-    search_distance = 2
-    dois = find_before_doi([start_doi], search_distance)
-    print(f"Found {len(dois)} DOIs before {start_doi} within {search_distance} steps.")
-    print(dois)
+    Returns:
+        dict: The loaded reference graph.
+    """
+    with open(input_file, 'r', encoding='UTF-8') as f:
+        return json.load(f)
 
-# TODO : journal_data의 파일명의 형식이 {doi}_{year}.json이 아닌 {ISSN}_{year}.json으로 되어있어서 수정이 필요함
-# TODO : doi로부터 journal의 ISSN을 추출하는 함수가 필요함
+if __name__ == "__main__":
+    START_DOI = "10.1038/s42005-020-0317-3"
+    SEARCH_DEPTH = 2
+    REFERENCE_GRAPH = build_reference_graph(START_DOI, SEARCH_DEPTH)
+    GRAPH_NAME = f"reference_graph_{START_DOI.replace('/', '_')}.json"
+    save_reference_graph_to_json(REFERENCE_GRAPH, GRAPH_NAME)

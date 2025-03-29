@@ -41,7 +41,12 @@ def search_journal_by_name(_journal_name, _rows=10):
         print(f"저널 이름: {item.get('title')}, ISSN: {item.get('ISSN')}")
     return items
 
+# Nature Nanotechnology: 7
+# Applied Physics Letters: 3
+# Physical Review Letters: 2
+# Review of Scientific Instruments: 2
+
 if __name__ == '__main__':
-    JOURNAL_NAME = 'communications physics'  # 예시 저널 이름
-    ROWS = 5  # 예시 검색 결과 개수
+    JOURNAL_NAME = 'Nature Nanotechnology'  # 예시 저널 이름
+    ROWS = 20  # 예시 검색 결과 개수
     search_journal_by_name(JOURNAL_NAME, ROWS)
