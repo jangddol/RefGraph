@@ -2,6 +2,7 @@ import requests
 import json
 from typing import List, Dict, Tuple, Optional
 import os
+from tqdm import tqdm
 
 def fetch_journal_articles(journal: str, start_year: int, end_year: int) -> List[Dict]:
     """
@@ -40,7 +41,7 @@ def fetch_journal_articles(journal: str, start_year: int, end_year: int) -> List
                 if not next_cursor:
                     break  # 더 이상 가져올 데이터가 없으면 종료
                 params['cursor'] = next_cursor
-                print(f"Retrieved {len(items)} articles for journal {journal} for year {year}.")
+                print(f"Retrieved {len(articles)} articles for journal {journal} for year {year}.")
             except requests.exceptions.Timeout:
                 print(f"Request timed out for journal {journal} for year {year}.")
                 break
@@ -113,7 +114,7 @@ def build_journal_graph(journal: str, year: int) -> Dict[str, Dict]:
         return {}
     print(f"Retrieved {len(articles)} articles for journal {journal} for year {year}.")
     graph: Dict[str, Dict] = {}
-    for article in articles:
+    for article in tqdm(articles, desc="Processing articles", unit="article"):
         doi = article.get('DOI')
         if doi:
             info, references = fetch_paper_citations(doi)
