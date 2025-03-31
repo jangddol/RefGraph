@@ -1,9 +1,13 @@
 import os
 import json
+from timemeasure import timeit
+from functools import lru_cache
+from makeissndoidict import ISSN_DOI_DICT
 
+@lru_cache(maxsize=None)
 def get_journal_data_files() -> list[str]:
     """
-    Get the list of all journal data files.
+    Get the list of all journal data files with memoization.
 
     Returns:
         list[str]: A list of filenames containing the journal data.
@@ -11,9 +15,10 @@ def get_journal_data_files() -> list[str]:
     journal_data_path = 'journal_data/'
     return [os.path.join(journal_data_path, file) for file in os.listdir(journal_data_path)]
 
+@timeit
 def find_doi_in_file(filename: str, doi: str) -> tuple[dict, int]:
     """
-    Find the DOI in a specific JSON file.
+    Find the DOI in a specific JSON file using ISSN mapping for optimization.
 
     Args:
         filename (str): The name of the JSON file.
@@ -22,6 +27,16 @@ def find_doi_in_file(filename: str, doi: str) -> tuple[dict, int]:
     Returns:
         tuple[dict, int]: A tuple containing the paper's data and the year of the data.
     """
+
+    issn = filename.split('/')[-1].split('_')[0]
+    prefix = ISSN_DOI_DICT.get(issn, None)
+    if prefix is None:
+        return None, None
+
+    if not doi.startswith(prefix):
+        return None, None
+
+    # Load and search the file if any ISSN matches
     with open(filename, 'r', encoding='UTF-8') as f:
         journal_data = json.load(f)
         if doi in journal_data:
@@ -30,6 +45,7 @@ def find_doi_in_file(filename: str, doi: str) -> tuple[dict, int]:
             return doi_data, doi_year
     return None, None
 
+@timeit
 def get_doi_data_from_json(doi: str) -> tuple[dict, int]:
     """
     Retrieve the data of a paper using its DOI from all JSON files.
@@ -43,9 +59,9 @@ def get_doi_data_from_json(doi: str) -> tuple[dict, int]:
     journal_data_files = get_journal_data_files()
     
     for filename in journal_data_files:
-        doi_data, doi_year = find_doi_in_file(filename, doi)
-        if doi_data:
-            return doi_data, doi_year
+        result = find_doi_in_file(filename, doi)
+        if result[0] is not None:
+            return result
     return None, None
 
 def build_reference_graph(start_doi: str, search_depth: int) -> dict:
